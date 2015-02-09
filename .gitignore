@@ -1,0 +1,6 @@
+*.suo
+*.pdb
+*.dll
+*.user
+UFTUltraGridCustomServer/bin/
+UFTUltraGridCustomServer/obj/
