@@ -20,6 +20,7 @@ namespace UFTUltraGridCustomServer
 
         Object GetNAProperty(String propertyPath);
         Hashtable GetRow(Object filter);
+        String GetLevelRow(Object filter);
 
     }
     /// <summary>
@@ -178,6 +179,25 @@ namespace UFTUltraGridCustomServer
             return list;
         }
 
+        private bool IsRowMatchesFilter(UltraGridRow row, Hashtable filter)
+        {
+            int numberOfMatchedCells = 0;
+            foreach(var cell in row.Cells)
+            {
+                if ( filter.ContainsKey(cell.Column.Header.Caption) )
+                {
+                    String val = (String)filter[cell.Column.Header.Caption];
+                    if (val.CompareTo(cell.Text) == 0)
+                    {
+                        ++numberOfMatchedCells;
+                    }
+                }
+            }
+
+            // check if all matched
+            return (numberOfMatchedCells == filter.Count);
+        }
+
         private Hashtable TraverseAllRowsHelper(Hashtable filter, RowsCollection rows, ref int rowsCount, ref int groupByRowsCount)
         {
 
@@ -200,22 +220,8 @@ namespace UFTUltraGridCustomServer
                     rowsCount++;
                 }
 
-                int numberOfMatchedCells = 0;
-                foreach(var cell in row.Cells)
-                {
-
-                    if ( filter.ContainsKey(cell.Column.Header.Caption) )
-                    {
-                        String val = (String)filter[cell.Column.Header.Caption];
-                        if (val.CompareTo(cell.Text) == 0)
-                        {
-                            ++numberOfMatchedCells;
-                        }
-                    }
-                }
-
                 // check if all matched
-                if(numberOfMatchedCells == filter.Count)
+                if (IsRowMatchesFilter(row, filter))
                 {
                     var result = new Hashtable();
                     foreach (var cell in row.Cells)
@@ -245,6 +251,68 @@ namespace UFTUltraGridCustomServer
                 }
             }
             return null;
+        }
+
+        private bool FindRowLevel(Hashtable filter, RowsCollection rows, List<int> outList)
+        {
+            // Loop through every row in the passed in rows collection.
+            for (int i =0 ; i < rows.Count; ++i)
+            {
+
+                UltraGridRow row = rows[i];
+                // If you are using Outlook GroupBy feature and have grouped rows by columns in the
+                // UltraGrid, then rows collection can contain group-by rows or regular rows. So you 
+                // may need to have code to handle group-by rows as well.
+
+
+                if( IsRowMatchesFilter(row, filter) )
+                {
+                    outList.Add(i);
+                    return true;
+                }
+
+                // If the row has any child rows. Typically, there is only a single child band. However,
+                // there will be multiple child bands if the band associated with row1 has mupliple child
+                // bands. This would be the case for exmple when you have a database hierarchy in which a
+                // table has multiple child tables.
+                if (null != row.ChildBands)
+                {
+                    // Loop throgh each of the child bands.
+                    for (int j = 0; j < row.ChildBands.Count; ++j)
+                    {
+                        var childBand = row.ChildBands[j];
+                        // Call this method recursivedly for each child rows collection.
+                        if (FindRowLevel(filter, childBand.Rows, outList))
+                        {
+                            outList.Add(j);
+                            outList.Add(i);
+                            return true;
+                        }
+                    }
+                }
+                
+            }
+            return false;
+        }
+
+        public String GetLevelRow(Object filter)
+        {
+            var table = (Hashtable)filter;
+            var grid = (Infragistics.Win.UltraWinGrid.UltraGrid)SourceControl;
+            var resList = new List<int>();
+            if (FindRowLevel(table, grid.Rows, resList))
+            {
+                String resultStr = "";
+                int i = resList.Count - 1;
+                resultStr += resList[i--];
+                for (; i >= 0; --i)
+                {
+                    resultStr += ";" + resList[i];
+                }
+                
+                return resultStr;
+            }
+            return "";
         }
 
         public Hashtable GetRow(Object filter)
