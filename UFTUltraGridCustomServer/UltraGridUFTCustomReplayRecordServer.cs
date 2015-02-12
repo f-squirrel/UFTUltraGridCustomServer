@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-
+using System.Drawing;
 
 namespace UFTUltraGridCustomServer
 {
@@ -21,6 +21,8 @@ namespace UFTUltraGridCustomServer
         Object GetNAProperty(String propertyPath);
         Hashtable GetRow(Object filter);
         String GetLevelRow(Object filter);
+        int GetX(Object filter, String headerCaption);
+        int GetY(Object filter, String headerCaption);
 
     }
     /// <summary>
@@ -198,6 +200,38 @@ namespace UFTUltraGridCustomServer
             return (numberOfMatchedCells == filter.Count);
         }
 
+        private UltraGridRow FindRowByFilter(Hashtable filter, RowsCollection rows)
+        {
+            // Loop through every row in the passed in rows collection.
+            foreach (UltraGridRow row in rows)
+            {
+                // check if all matched
+                if (IsRowMatchesFilter(row, filter))
+                {
+                    return row;
+                }
+
+                // If the row has any child rows. Typically, there is only a single child band. However,
+                // there will be multiple child bands if the band associated with row1 has mupliple child
+                // bands. This would be the case for exmple when you have a database hierarchy in which a
+                // table has multiple child tables.
+                if (null != row.ChildBands)
+                {
+                    // Loop throgh each of the child bands.
+                    foreach (UltraGridChildBand childBand in row.ChildBands)
+                    {
+                        // Call this method recursivedly for each child rows collection.
+                        var result = FindRowByFilter(filter, childBand.Rows);
+                        if (result != null)
+                        {
+                            return result;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
         private Hashtable TraverseAllRowsHelper(Hashtable filter, RowsCollection rows, ref int rowsCount, ref int groupByRowsCount)
         {
 
@@ -293,6 +327,47 @@ namespace UFTUltraGridCustomServer
                 
             }
             return false;
+        }
+
+
+        public Object GetCoordinates(Object filter, String headerCaption)
+        {
+            Hashtable inputTable = (Hashtable)filter;
+            var grid = (Infragistics.Win.UltraWinGrid.UltraGrid)SourceControl;
+            var row = FindRowByFilter(inputTable, grid.Rows);
+            foreach (var cell in row.Cells)
+            {
+                if (cell.Column.Header.Caption.CompareTo(headerCaption) == 0)
+                {
+                    var uiElement = cell.GetUIElement();
+                    if(uiElement == null) {
+                        return null;
+                    }
+
+                    return uiElement.Rect.Location;
+                }
+            }
+            throw new ApplicationException("failed to find given cell");
+        }
+
+        public int GetX(Object filter, String headerCaption)
+        {   
+            var pointObj = GetCoordinates(filter, headerCaption);
+            if(pointObj == null)
+            {
+                ReplayThrowError("Cell is not found or not visible!");
+            }
+            return ((Point)pointObj).X;
+        }
+
+        public int GetY(Object filter, String headerCaption)
+        {
+            var pointObj = GetCoordinates(filter, headerCaption);
+            if (pointObj == null)
+            {
+                ReplayThrowError("Cell is not found or not visible!");
+            }
+            return ((Point)pointObj).Y;
         }
 
         public String GetLevelRow(Object filter)
