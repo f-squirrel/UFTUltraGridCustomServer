@@ -126,277 +126,56 @@ namespace UFTUltraGridCustomServer
 			MouseClick(X, Y, MOUSE_BUTTON.LEFT_MOUSE_BUTTON);
 		}
 */
- 
-        private List<ObjectPropertyDescriptor> GetListOfProperties(string propertyPath)
-        {
-            if (propertyPath.Length == 0)
-            {
-                throw new ArgumentException("Empty property path");
-            }
-
-            List<ObjectPropertyDescriptor> list = new List<ObjectPropertyDescriptor>();
-            int startOfPropertyName = 0;
-            for (int i = 0; i < propertyPath.Length; i++)
-            {
-                char ch = propertyPath[i];
-                while (i < propertyPath.Length && (Char.IsLetter(propertyPath[i]) || Char.IsNumber(propertyPath[i])))
-                {
-                    ++i;
-                }
-                string propertyName = propertyPath.Substring(startOfPropertyName, i - startOfPropertyName);
-                startOfPropertyName = i;
-
-                var descriptor = new ObjectPropertyDescriptor(propertyName);
-
-                if (i < propertyPath.Length && propertyPath[i] == '[')
-                {
-                    descriptor.IsIndexed = true;
-                    int indexStart = ++i;
-                    while (i < propertyPath.Length && propertyPath[i] != ']')
-                    {
-                        ++i;
-                    }
-                    string index = propertyPath.Substring(indexStart, i - indexStart);
-                    descriptor.Index = Int32.Parse(index);
-                    ++i;
-                }
-                list.Add(descriptor);
-
-                if (i >= propertyPath.Length)
-                {
-                    break;
-                }
-
-                if (propertyPath[i] == '.')
-                {
-                    startOfPropertyName = ++i;
-                    continue;
-                }
-                else
-                {
-                    throw new Exception("Incorrect property path: mot (.) after property name or index");
-                }
-            }
-
-            return list;
-        }
-
-        private bool IsRowMatchesFilter(UltraGridRow row, Hashtable filter)
-        {
-            int numberOfMatchedCells = 0;
-            foreach(var cell in row.Cells)
-            {
-                if ( filter.ContainsKey(cell.Column.Header.Caption) )
-                {
-                    String val = (String)filter[cell.Column.Header.Caption];
-                    if (val.CompareTo(cell.Text) == 0)
-                    {
-                        ++numberOfMatchedCells;
-                    }
-                }
-            }
-
-            // check if all matched
-            return (numberOfMatchedCells == filter.Count);
-        }
-
-        private UltraGridRow FindRowByFilter(Hashtable filter, RowsCollection rows)
-        {
-            // Loop through every row in the passed in rows collection.
-            foreach (UltraGridRow row in rows)
-            {
-                // check if all matched
-                if (IsRowMatchesFilter(row, filter))
-                {
-                    return row;
-                }
-
-                // If the row has any child rows. Typically, there is only a single child band. However,
-                // there will be multiple child bands if the band associated with row1 has mupliple child
-                // bands. This would be the case for exmple when you have a database hierarchy in which a
-                // table has multiple child tables.
-                if (null != row.ChildBands)
-                {
-                    // Loop throgh each of the child bands.
-                    foreach (UltraGridChildBand childBand in row.ChildBands)
-                    {
-                        // Call this method recursivedly for each child rows collection.
-                        var result = FindRowByFilter(filter, childBand.Rows);
-                        if (result != null)
-                        {
-                            return result;
-                        }
-                    }
-                }
-            }
-            return null;
-        }
-
-        private Hashtable TraverseAllRowsHelper(Hashtable filter, RowsCollection rows, ref int rowsCount, ref int groupByRowsCount)
-        {
-
-            // Loop through every row in the passed in rows collection.
-            foreach (UltraGridRow row in rows)
-            {
-                // If you are using Outlook GroupBy feature and have grouped rows by columns in the
-                // UltraGrid, then rows collection can contain group-by rows or regular rows. So you 
-                // may need to have code to handle group-by rows as well.
-                if (row is UltraGridGroupByRow)
-                {
-                    UltraGridGroupByRow groupByRow = (UltraGridGroupByRow)row;
-
-                    // Incremement the group-by row count.
-                    groupByRowsCount++;
-                }
-                else
-                {
-                    // Incremenent the regular row count.
-                    rowsCount++;
-                }
-
-                // check if all matched
-                if (IsRowMatchesFilter(row, filter))
-                {
-                    var result = new Hashtable();
-                    foreach (var cell in row.Cells)
-                    {
-                        result.Add(cell.Column.Header.Caption, cell.Text);                     
-                    }
-                    
-                    return result;
-                }
-                
-                // If the row has any child rows. Typically, there is only a single child band. However,
-                // there will be multiple child bands if the band associated with row1 has mupliple child
-                // bands. This would be the case for exmple when you have a database hierarchy in which a
-                // table has multiple child tables.
-                if (null != row.ChildBands)
-                {
-                    // Loop throgh each of the child bands.
-                    foreach (UltraGridChildBand childBand in row.ChildBands)
-                    {
-                        // Call this method recursivedly for each child rows collection.
-                        var result = TraverseAllRowsHelper(filter, childBand.Rows, ref rowsCount, ref groupByRowsCount);
-                        if( result != null)
-                        {
-                            return result;
-                        }
-                    }
-                }
-            }
-            return null;
-        }
-
-        private bool FindRowLevel(Hashtable filter, RowsCollection rows, List<int> outList)
-        {
-            // Loop through every row in the passed in rows collection.
-            for (int i =0 ; i < rows.Count; ++i)
-            {
-
-                UltraGridRow row = rows[i];
-                // If you are using Outlook GroupBy feature and have grouped rows by columns in the
-                // UltraGrid, then rows collection can contain group-by rows or regular rows. So you 
-                // may need to have code to handle group-by rows as well.
-
-
-                if( IsRowMatchesFilter(row, filter) )
-                {
-                    outList.Add(i);
-                    return true;
-                }
-
-                // If the row has any child rows. Typically, there is only a single child band. However,
-                // there will be multiple child bands if the band associated with row1 has mupliple child
-                // bands. This would be the case for exmple when you have a database hierarchy in which a
-                // table has multiple child tables.
-                if (null != row.ChildBands)
-                {
-                    // Loop throgh each of the child bands.
-                    for (int j = 0; j < row.ChildBands.Count; ++j)
-                    {
-                        var childBand = row.ChildBands[j];
-                        // Call this method recursivedly for each child rows collection.
-                        if (FindRowLevel(filter, childBand.Rows, outList))
-                        {
-                            outList.Add(j);
-                            outList.Add(i);
-                            return true;
-                        }
-                    }
-                }
-                
-            }
-            return false;
-        }
-
-
-        public Object GetCoordinates(Object filter, String headerCaption)
-        {
-            Hashtable inputTable = (Hashtable)filter;
-            var grid = (Infragistics.Win.UltraWinGrid.UltraGrid)SourceControl;
-            var row = FindRowByFilter(inputTable, grid.Rows);
-            foreach (var cell in row.Cells)
-            {
-                if (cell.Column.Header.Caption.CompareTo(headerCaption) == 0)
-                {
-                    var uiElement = cell.GetUIElement();
-                    if(uiElement == null) {
-                        return null;
-                    }
-
-                    return uiElement.Rect.Location;
-                }
-            }
-            throw new ApplicationException("failed to find given cell");
-        }
 
         public int GetX(Object filter, String headerCaption)
-        {   
-            var pointObj = GetCoordinates(filter, headerCaption);
-            if(pointObj == null)
-            {
-                ReplayThrowError("Cell is not found or not visible!");
-            }
-            return ((Point)pointObj).X;
+        {
+            int x = GetCoordinates(filter, headerCaption).X;
+            ReplayReportStep("GetX", EventStatus.EVENTSTATUS_GENERAL, x);
+            return x;
         }
 
         public int GetY(Object filter, String headerCaption)
         {
-            var pointObj = GetCoordinates(filter, headerCaption);
-            if (pointObj == null)
-            {
-                ReplayThrowError("Cell is not found or not visible!");
-            }
-            return ((Point)pointObj).Y;
+            int y = GetCoordinates(filter, headerCaption).Y;
+            ReplayReportStep("GetY", EventStatus.EVENTSTATUS_GENERAL, y);
+            return y;
         }
 
         public String GetLevelRow(Object filter)
         {
-            var table = (Hashtable)filter;
+            Hashtable table = (Hashtable)filter;
             var grid = (Infragistics.Win.UltraWinGrid.UltraGrid)SourceControl;
             var resList = new List<int>();
-            if (FindRowLevel(table, grid.Rows, resList))
+
+            String resultPath = null;
+            if (GetRowLevelPath(table, grid.Rows, resList))
             {
-                String resultStr = "";
+                resultPath = "";
                 int i = resList.Count - 1;
-                resultStr += resList[i--];
+                resultPath += resList[i--];
                 for (; i >= 0; --i)
                 {
-                    resultStr += ";" + resList[i];
-                }
-                
-                return resultStr;
+                    resultPath += ";" + resList[i];
+                }            
             }
-            return "";
+            ReplayReportStep("GetLevelRow", EventStatus.EVENTSTATUS_GENERAL, resultPath);
+            return resultPath;
         }
 
         public Hashtable GetRow(Object filter)
         {
             Hashtable inputTable = (Hashtable)filter;
             var grid = (Infragistics.Win.UltraWinGrid.UltraGrid)SourceControl;
-            int rowsCount = 0;
-            int groupByRowsCount = 0;
-            return TraverseAllRowsHelper(inputTable, grid.Rows, ref rowsCount, ref groupByRowsCount); ;
+            var row = FindRowByFilter(inputTable, grid.Rows);
+            var result = new Hashtable();
+
+            foreach (var cell in row.Cells)
+            {
+                result.Add(cell.Column.Header.Caption, cell.Text);
+            }
+
+            ReplayReportStep("GetRow", EventStatus.EVENTSTATUS_GENERAL);
+            return result;
         }
 
         public Object GetNAProperty(String propertyPath)
@@ -407,7 +186,7 @@ namespace UFTUltraGridCustomServer
             return result;
         }
 
-        public Object GetNAProperty(String propertyPath, object obj)
+        private Object GetNAProperty(String propertyPath, object obj)
         {
             if (propertyPath.Length == 0)
             {
@@ -467,6 +246,188 @@ namespace UFTUltraGridCustomServer
             return currentValue;
         }
 
+        private List<ObjectPropertyDescriptor> GetListOfProperties(string propertyPath)
+        {
+            if (propertyPath.Length == 0)
+            {
+                throw new ArgumentException("Empty property path");
+            }
+
+            List<ObjectPropertyDescriptor> list = new List<ObjectPropertyDescriptor>();
+            int startOfPropertyName = 0;
+            for (int i = 0; i < propertyPath.Length; i++)
+            {
+                char ch = propertyPath[i];
+                while (i < propertyPath.Length && (Char.IsLetter(propertyPath[i]) || Char.IsNumber(propertyPath[i])))
+                {
+                    ++i;
+                }
+                string propertyName = propertyPath.Substring(startOfPropertyName, i - startOfPropertyName);
+                startOfPropertyName = i;
+
+                var descriptor = new ObjectPropertyDescriptor(propertyName);
+
+                if (i < propertyPath.Length && propertyPath[i] == '[')
+                {
+                    descriptor.IsIndexed = true;
+                    int indexStart = ++i;
+                    while (i < propertyPath.Length && propertyPath[i] != ']')
+                    {
+                        ++i;
+                    }
+                    string index = propertyPath.Substring(indexStart, i - indexStart);
+                    descriptor.Index = Int32.Parse(index);
+                    ++i;
+                }
+                list.Add(descriptor);
+
+                if (i >= propertyPath.Length)
+                {
+                    break;
+                }
+
+                if (propertyPath[i] == '.')
+                {
+                    startOfPropertyName = ++i;
+                    continue;
+                }
+                else
+                {
+                    throw new Exception("Incorrect property path: mot (.) after property name or index");
+                }
+            }
+
+            return list;
+        }
+
+        private bool IsRowMatchesFilter(UltraGridRow row, Hashtable filter)
+        {
+            int numberOfMatchedCells = 0;
+            foreach (var cell in row.Cells)
+            {
+                if (filter.ContainsKey(cell.Column.Header.Caption))
+                {
+                    String val = (String)filter[cell.Column.Header.Caption];
+                    if (val.CompareTo(cell.Text) == 0)
+                    {
+                        ++numberOfMatchedCells;
+                    }
+                }
+            }
+
+            // check if all matched
+            return (numberOfMatchedCells == filter.Count);
+        }
+
+        private UltraGridRow FindRowByFilter(Hashtable filter, RowsCollection rows)
+        {
+            var row = _FindRowByFilter(filter, rows);
+            if (row == null)
+            {
+                ReplayThrowError("Row is not found!");
+            }
+            return row;
+        }
+
+        private UltraGridRow _FindRowByFilter(Hashtable filter, RowsCollection rows)
+        {
+            // Loop through every row in the passed in rows collection.
+            foreach (UltraGridRow row in rows)
+            {
+                // check if all matched
+                if (IsRowMatchesFilter(row, filter))
+                {
+                    return row;
+                }
+
+                // If the row has any child rows. Typically, there is only a single child band. However,
+                // there will be multiple child bands if the band associated with row1 has mupliple child
+                // bands. This would be the case for exmple when you have a database hierarchy in which a
+                // table has multiple child tables.
+                if (null != row.ChildBands)
+                {
+                    // Loop throgh each of the child bands.
+                    foreach (UltraGridChildBand childBand in row.ChildBands)
+                    {
+                        // Call this method recursivedly for each child rows collection.
+                        var result = _FindRowByFilter(filter, childBand.Rows);
+                        if (result != null)
+                        {
+                            return result;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        private bool GetRowLevelPath(Hashtable filter, RowsCollection rows, List<int> outList)
+        {
+            // Loop through every row in the passed in rows collection.
+            for (int i = 0; i < rows.Count; ++i)
+            {
+                UltraGridRow row = rows[i];
+                // If you are using Outlook GroupBy feature and have grouped rows by columns in the
+                // UltraGrid, then rows collection can contain group-by rows or regular rows. So you 
+                // may need to have code to handle group-by rows as well.
+
+                if (IsRowMatchesFilter(row, filter))
+                {
+                    outList.Add(i);
+                    return true;
+                }
+
+                // If the row has any child rows. Typically, there is only a single child band. However,
+                // there will be multiple child bands if the band associated with row1 has mupliple child
+                // bands. This would be the case for exmple when you have a database hierarchy in which a
+                // table has multiple child tables.
+                if (null != row.ChildBands)
+                {
+                    // Loop throgh each of the child bands.
+                    for (int j = 0; j < row.ChildBands.Count; ++j)
+                    {
+                        var childBand = row.ChildBands[j];
+                        // Call this method recursivedly for each child rows collection.
+                        if (GetRowLevelPath(filter, childBand.Rows, outList))
+                        {
+                            outList.Add(j);
+                            outList.Add(i);
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        private Point GetCoordinates(Object filter, String headerCaption)
+        {
+            Hashtable inputTable = (Hashtable)filter;
+            if (inputTable.Count == 0)
+            {
+                ReplayThrowError("Empty dictionary!");
+            }
+
+            var grid = (Infragistics.Win.UltraWinGrid.UltraGrid)SourceControl;
+            var row = FindRowByFilter(inputTable, grid.Rows);
+
+            foreach (var cell in row.Cells)
+            {
+                if (cell.Column.Header.Caption.CompareTo(headerCaption) == 0)
+                {
+                    var uiElement = cell.GetUIElement();
+                    if (uiElement == null)
+                    {
+                        ReplayThrowError("Cell is not visible!");
+                    }
+
+                    return uiElement.Rect.Location;
+                }
+            }
+
+            ReplayThrowError("Cell is not found!");
+            throw new ApplicationException("Unspecified error!");
+        }
         #endregion
         #endregion
     }
