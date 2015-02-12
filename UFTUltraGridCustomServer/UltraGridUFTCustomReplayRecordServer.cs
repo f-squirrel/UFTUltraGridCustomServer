@@ -23,8 +23,8 @@ namespace UFTUltraGridCustomServer
         String GetLevelRow(Object filter);
         int GetX(Object filter, String headerCaption);
         int GetY(Object filter, String headerCaption);
-
     }
+    
     /// <summary>
     /// Summary description for UltraGridUFTCustomReplayRecordServer.
     /// </summary>
@@ -334,6 +334,7 @@ namespace UFTUltraGridCustomServer
             // Loop through every row in the passed in rows collection.
             foreach (UltraGridRow row in rows)
             {
+                
                 // check if all matched
                 if (IsRowMatchesFilter(row, filter))
                 {
@@ -349,6 +350,7 @@ namespace UFTUltraGridCustomServer
                     // Loop throgh each of the child bands.
                     foreach (UltraGridChildBand childBand in row.ChildBands)
                     {
+                        
                         // Call this method recursivedly for each child rows collection.
                         var result = _FindRowByFilter(filter, childBand.Rows);
                         if (result != null)
@@ -418,7 +420,13 @@ namespace UFTUltraGridCustomServer
                     var uiElement = cell.GetUIElement();
                     if (uiElement == null)
                     {
-                        ReplayThrowError("Cell is not visible!");
+                        // need to expand row.
+                        ExpandRow(row);
+                        uiElement = cell.GetUIElement();
+                        if (uiElement == null)
+                        {
+                            ReplayThrowError("Cell is not visible!");
+                        }
                     }
 
                     return uiElement.Rect.Location;
@@ -427,6 +435,25 @@ namespace UFTUltraGridCustomServer
 
             ReplayThrowError("Cell is not found!");
             throw new ApplicationException("Unspecified error!");
+        }
+
+        private void ExpandRow(UltraGridRow row)
+        {
+            _ExpandRow(row);
+        }
+
+        private void _ExpandRow(UltraGridRow row)
+        {
+            if(row == null)
+            {
+                return;
+            }
+            if(row.IsExpandable)
+            {
+                row.Expanded = true;
+            }
+            _ExpandRow(row.ParentRow);
+            
         }
         #endregion
         #endregion
